@@ -84,4 +84,65 @@
       const desiredWidth = card.clientWidth;
       const viewport1 = page.getViewport({ scale: 1 });
       const scale = desiredWidth / viewport1.width;
-      const viewport = page.get
+      const viewport = page.getViewport({ scale });
+
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      rendering = false;
+      setInfo();
+    }
+
+    function clampAndRender() {
+      if (!pdfDoc || rendering) return;
+      if (pageNum < 1) pageNum = 1;
+      if (pageNum > pdfDoc.numPages) pageNum = pdfDoc.numPages;
+      renderPage(pageNum);
+    }
+
+    document.getElementById("prev").onclick = () => { pageNum--; clampAndRender(); };
+    document.getElementById("next").onclick = () => { pageNum++; clampAndRender(); };
+
+    // Fullscreen
+    document.getElementById("fs").onclick = async () => {
+      const el = document.documentElement;
+      if (!document.fullscreenElement) await el.requestFullscreen();
+      else await document.exitFullscreen();
+      setTimeout(clampAndRender, 250);
+    };
+
+    // Swipe sinistra/destra (niente scroll)
+    let startX = null;
+    document.addEventListener("touchstart", (e) => { startX = e.touches[0].clientX; }, { passive:true });
+    document.addEventListener("touchend", (e) => {
+      if (startX == null) return;
+      const endX = e.changedTouches[0].clientX;
+      const dx = endX - startX;
+      startX = null;
+      if (Math.abs(dx) < 40) return;
+      if (dx < 0) pageNum++; else pageNum--;
+      clampAndRender();
+    }, { passive:true });
+
+    // Resize: ricalcola scala
+    window.addEventListener("resize", () => {
+      if (!pdfDoc) return;
+      clearTimeout(window.__r);
+      window.__r = setTimeout(clampAndRender, 150);
+    });
+
+    // Carica PDF
+    (async () => {
+      try {
+        pdfDoc = await pdfjsLib.getDocument(url).promise;
+        await renderPage(pageNum);
+      } catch (err) {
+        document.querySelector(".hint").textContent =
+          "Errore: PDF non trovato. Verifica che il file si chiami menu.pdf e sia nella root del repo.";
+        console.error(err);
+      }
+    })();
+  </script>
+</body>
+</html>
