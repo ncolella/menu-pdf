@@ -1,34 +1,87 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Menù</title>
 
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-      touch-action: pan-x;
+    :root { --bg:#0b0b0c; --fg:#f4f4f5; --muted:#a1a1aa; --card:#141416; }
+    html, body { height:100%; margin:0; background:var(--bg); color:var(--fg); overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .wrap { height:100%; display:flex; flex-direction:column; }
+    .top {
+      height:56px; display:flex; align-items:center; justify-content:space-between;
+      padding:0 14px; background:rgba(20,20,22,.92); backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,.06);
     }
-
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      overflow: hidden;
+    .btn {
+      appearance:none; border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06); color:var(--fg);
+      padding:10px 12px; border-radius:12px; font-size:14px;
     }
+    .btn:active { transform: translateY(1px); }
+    .title { font-weight:600; font-size:14px; color:var(--muted); }
+    .viewer { flex:1; display:flex; align-items:center; justify-content:center; padding:12px; }
+    .card {
+      width: min(980px, 100%);
+      height: 100%;
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden;
+    }
+    canvas { width:100%; height:auto; display:block; }
+    .hint { position: fixed; bottom: 12px; left: 0; right: 0; text-align:center; color:var(--muted); font-size:12px; }
   </style>
 </head>
 
 <body>
-  <iframe
-    src="https://mozilla.github.io/pdf.js/web/viewer.html?file=menu.pdf#page=1&view=FitH&zoom=page-width"
-    allow="fullscreen">
-  </iframe>
-</body>
-</html>
+  <div class="wrap">
+    <div class="top">
+      <button class="btn" id="prev">←</button>
+      <div class="title"><span id="pageInfo">Pagina 1</span></div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn" id="fs">⛶</button>
+        <button class="btn" id="next">→</button>
+      </div>
+    </div>
+
+    <div class="viewer">
+      <div class="card">
+        <canvas id="c"></canvas>
+      </div>
+    </div>
+
+    <div class="hint">Swipe ← → per sfogliare</div>
+  </div>
+
+  <!-- PDF.js (libreria) -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.js"></script>
+  <script>
+    // Config worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.js";
+
+    const url = "./menu.pdf";  // IMPORTANTISSIMO: il file deve chiamarsi menu.pdf
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("2d", { alpha: false });
+
+    let pdfDoc = null;
+    let pageNum = 1;
+    let rendering = false;
+
+    function setInfo() {
+      document.getElementById("pageInfo").textContent = `Pagina ${pageNum} / ${pdfDoc.numPages}`;
+    }
+
+    async function renderPage(num) {
+      rendering = true;
+      const page = await pdfDoc.getPage(num);
+
+      // scala: pagina a larghezza schermo (dentro la card)
+      const card = document.querySelector(".card");
+      const desiredWidth = card.clientWidth;
+      const viewport1 = page.getViewport({ scale: 1 });
+      const scale = desiredWidth / viewport1.width;
+      const viewport = page.get
