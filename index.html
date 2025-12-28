@@ -60,6 +60,12 @@
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/legacy/build/pdf.min.js"></script>
   <script>
     // Config worker
+if (!window.pdfjsLib) {
+  document.querySelector(".hint").textContent =
+    "Errore: PDF.js non caricato. Ricarica la pagina o prova in incognito.";
+  throw new Error("pdfjsLib not loaded");
+}
+    
     pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/legacy/build/pdf.worker.min.js";
 
