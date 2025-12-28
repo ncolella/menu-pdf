@@ -2,153 +2,190 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Menù</title>
 
   <style>
-    :root { --bg:#0b0b0c; --fg:#f4f4f5; --muted:#a1a1aa; --card:#141416; }
-    html, body { height:100%; margin:0; background:var(--bg); color:var(--fg); overflow:hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    .wrap { height:100%; display:flex; flex-direction:column; }
-    .top {
-      height:56px; display:flex; align-items:center; justify-content:space-between;
-      padding:0 14px; background:rgba(20,20,22,.92); backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(255,255,255,.06);
-    }
-    .btn {
-      appearance:none; border: 1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.06); color:var(--fg);
-      padding:10px 12px; border-radius:12px; font-size:14px;
-    }
-    .btn:active { transform: translateY(1px); }
-    .title { font-weight:600; font-size:14px; color:var(--muted); }
-    .viewer { flex:1; display:flex; align-items:center; justify-content:center; padding:12px; }
-    .card {
-      width: min(980px, 100%);
+    html, body {
+      margin: 0;
+      padding: 0;
       height: 100%;
-      background: var(--card);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 18px;
-      display:flex; align-items:center; justify-content:center;
-      overflow:hidden;
+      overflow: hidden;
+      background: #0b0b0c;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    canvas { width:100%; height:auto; display:block; }
-    .hint { position: fixed; bottom: 12px; left: 0; right: 0; text-align:center; color:var(--muted); font-size:12px; }
+
+    .app {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .top {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      background: rgba(20,20,22,.95);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+
+    .btn {
+      border: 1px solid rgba(255,255,255,.15);
+      background: rgba(255,255,255,.08);
+      color: #f4f4f5;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 16px;
+    }
+
+    .viewer {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+
+    .card {
+      width: min(100%, 980px);
+      height: 100%;
+      background: #141416;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 10px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 12px;
+      color: #a1a1aa;
+    }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
+  <div class="app">
     <div class="top">
       <button class="btn" id="prev">←</button>
-      <div class="title"><span id="pageInfo">Pagina 1</span></div>
-      <div style="display:flex; gap:10px;">
-        <button class="btn" id="fs">⛶</button>
-        <button class="btn" id="next">→</button>
-      </div>
+      <div id="info">Pagina 1</div>
+      <button class="btn" id="next">→</button>
     </div>
 
     <div class="viewer">
       <div class="card">
-        <canvas id="c"></canvas>
+        <canvas id="canvas"></canvas>
       </div>
     </div>
 
     <div class="hint">Swipe ← → per sfogliare</div>
   </div>
 
-  <!-- PDF.js (libreria) -->
-  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/legacy/build/pdf.min.js"></script>
+  <!-- PDF.js LEGACY (espone pdfjsLib globale) -->
+  <script src="https://unpkg.com/pdfjs-dist@3.3.122/legacy/build/pdf.min.js"></script>
   <script>
-    // Config worker
-if (!window.pdfjsLib) {
-  document.querySelector(".hint").textContent =
-    "Errore: PDF.js non caricato. Ricarica la pagina o prova in incognito.";
-  throw new Error("pdfjsLib not loaded");
-}
-    
+    // Worker
     pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/legacy/build/pdf.worker.min.js";
+      "https://unpkg.com/pdfjs-dist@3.3.122/legacy/build/pdf.worker.min.js";
 
-    const url = "./menu.pdf";  // IMPORTANTISSIMO: il file deve chiamarsi menu.pdf
-    const canvas = document.getElementById("c");
-    const ctx = canvas.getContext("2d", { alpha: false });
+    const url = "./menu.pdf";
 
-    let pdfDoc = null;
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    let pdf = null;
     let pageNum = 1;
     let rendering = false;
 
-    function setInfo() {
-      document.getElementById("pageInfo").textContent = `Pagina ${pageNum} / ${pdfDoc.numPages}`;
+    function updateInfo() {
+      document.getElementById("info").textContent =
+        `Pagina ${pageNum} / ${pdf.numPages}`;
     }
 
     async function renderPage(num) {
       rendering = true;
-      const page = await pdfDoc.getPage(num);
+      const page = await pdf.getPage(num);
 
-      // scala: pagina a larghezza schermo (dentro la card)
       const card = document.querySelector(".card");
-      const desiredWidth = card.clientWidth;
-      const viewport1 = page.getViewport({ scale: 1 });
-      const scale = desiredWidth / viewport1.width;
+      const baseViewport = page.getViewport({ scale: 1 });
+      const scale = card.clientWidth / baseViewport.width;
       const viewport = page.getViewport({ scale });
 
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      await page.render({
+        canvasContext: ctx,
+        viewport
+      }).promise;
+
       rendering = false;
-      setInfo();
+      updateInfo();
     }
 
     function clampAndRender() {
-      if (!pdfDoc || rendering) return;
+      if (!pdf || rendering) return;
       if (pageNum < 1) pageNum = 1;
-      if (pageNum > pdfDoc.numPages) pageNum = pdfDoc.numPages;
+      if (pageNum > pdf.numPages) pageNum = pdf.numPages;
       renderPage(pageNum);
     }
 
-    document.getElementById("prev").onclick = () => { pageNum--; clampAndRender(); };
-    document.getElementById("next").onclick = () => { pageNum++; clampAndRender(); };
-
-    // Fullscreen
-    document.getElementById("fs").onclick = async () => {
-      const el = document.documentElement;
-      if (!document.fullscreenElement) await el.requestFullscreen();
-      else await document.exitFullscreen();
-      setTimeout(clampAndRender, 250);
+    document.getElementById("prev").onclick = () => {
+      pageNum--;
+      clampAndRender();
     };
 
-    // Swipe sinistra/destra (niente scroll)
+    document.getElementById("next").onclick = () => {
+      pageNum++;
+      clampAndRender();
+    };
+
+    // Swipe orizzontale (no scroll)
     let startX = null;
-    document.addEventListener("touchstart", (e) => { startX = e.touches[0].clientX; }, { passive:true });
-    document.addEventListener("touchend", (e) => {
-      if (startX == null) return;
-      const endX = e.changedTouches[0].clientX;
-      const dx = endX - startX;
+    document.addEventListener("touchstart", e => {
+      startX = e.touches[0].clientX;
+    }, { passive: true });
+
+    document.addEventListener("touchend", e => {
+      if (startX === null) return;
+      const dx = e.changedTouches[0].clientX - startX;
       startX = null;
       if (Math.abs(dx) < 40) return;
-      if (dx < 0) pageNum++; else pageNum--;
+      pageNum += dx < 0 ? 1 : -1;
       clampAndRender();
-    }, { passive:true });
+    }, { passive: true });
 
-    // Resize: ricalcola scala
     window.addEventListener("resize", () => {
-      if (!pdfDoc) return;
+      if (!pdf) return;
       clearTimeout(window.__r);
       window.__r = setTimeout(clampAndRender, 150);
     });
 
-    // Carica PDF
-    (async () => {
-      try {
-        pdfDoc = await pdfjsLib.getDocument(url).promise;
-        await renderPage(pageNum);
-      } catch (err) {
-        document.querySelector(".hint").textContent =
-          "Errore: PDF non trovato. Verifica che il file si chiami menu.pdf e sia nella root del repo.";
-        console.error(err);
-      }
-    })();
+    // Load PDF
+    pdfjsLib.getDocument(url).promise.then(doc => {
+      pdf = doc;
+      renderPage(pageNum);
+    }).catch(err => {
+      document.querySelector(".hint").textContent =
+        "Errore: impossibile caricare il PDF.";
+      console.error(err);
+    });
   </script>
 </body>
 </html>
